@@ -41,8 +41,7 @@ Le relazioni di dipendenza tra gli item descritti nell’esempio precedente poss
 orientato aciclico (DAG). In questo grafo, ciascun nodo rappresenta un item, e un arco diretto da un nodo _A_ a un nodo _B_ indica
 che l’item _A_ necessita dell’item _B_ per essere prodotto.
 
-<img src="./src/grafo.png
-"/>
+<img src="./src/grafo.png"/>
 
 # 2 Obiettivo
 
