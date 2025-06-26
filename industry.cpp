@@ -1,9 +1,8 @@
 // TO DO, vedi indicazioni in industry.h
 #include "industry.h"
-#include <map>     // Per std::map
-#include <set>     // Per std::set
-#include <climits> // Per UINT_MAX
-#include <algorithm> // Per std::min (potenzialmente utile, anche se non strettamente usato nella soluzione corrente)
+#include <map>       // Per std::map
+#include <set>       // Per std::set
+#include <climits>   // Per UINT_MAX
 
 namespace industry
 {
@@ -12,7 +11,7 @@ namespace industry
   {
     std::string name;
     bool isBasic;
-    unsigned quantity; // Usato solo per basic items
+    unsigned quantity;       // Usato solo per basic items
     list::List dependencies; // Items necessari per produrre questo item (A -> B, B è in dependencies di A)
     list::List dependents;   // Items che richiedono questo item (B -> A, B è in dependents di A)
   };
@@ -417,8 +416,9 @@ namespace industry
     for (int i = 0; i < list::size(initialDependents); ++i)
     {
       std::string dependentName = list::get(i, initialDependents);
-      if (resultSet.find(dependentName) == resultSet.end()) { // Evita di aggiungere duplicati all'inizio
-          resultSet.insert(dependentName);
+      if (resultSet.find(dependentName) == resultSet.end())
+      { // Evita di aggiungere duplicati all'inizio
+        resultSet.insert(dependentName);
       }
       collectNeededByChainRec(indus, dependentName, resultSet, visited);
     }
@@ -438,118 +438,124 @@ namespace industry
   // Popola 'requiredBasicItems' con coppie (nome_basic_item, quantità_necessaria_per_unità_di_itemName).
   // Restituisce true se 'itemName' esiste e la raccolta ha successo, false altrimenti.
   // Questa funzione è marcata come static per essere visibile solo all'interno di questo file.
-  static bool getRequiredBasicItems(const Industry &indus, const std::string &itemName, std::map<std::string, unsigned> &requiredBasicItems) {
-      int idx = findItemIndex(indus, itemName);
-      if (idx == -1) {
-          return false; // Item non trovato
-      }
+  static bool getRequiredBasicItems(const Industry &indus, const std::string &itemName, std::map<std::string, unsigned> &requiredBasicItems)
+  {
+    int idx = findItemIndex(indus, itemName);
+    if (idx == -1)
+    {
+      return false; // Item non trovato
+    }
 
-      const Item &item = indus->items[idx];
+    const Item &item = indus->items[idx];
 
-      if (item.isBasic) {
-          requiredBasicItems[item.name] += 1; // 1 unità del basic item 'item.name' è necessaria
-          return true;
-      }
-
-      // Per un item composto, ricorsivamente calcola le necessità per le sue dipendenze
-      for (int i = 0; i < list::size(item.dependencies); ++i) {
-          std::string dependencyName = list::get(i, item.dependencies);
-          // Non c'è bisogno di una mappa temporanea per ogni dipendenza,
-          // basta passare la stessa 'requiredBasicItems' e far sommare la ricorsione.
-          if (!getRequiredBasicItems(indus, dependencyName, requiredBasicItems)) {
-              // Se una dipendenza non esiste o non può essere risolta, allora 'itemName' non può essere prodotto.
-              return false;
-          }
-      }
+    if (item.isBasic)
+    {
+      requiredBasicItems[item.name] += 1; // 1 unità del basic item 'item.name' è necessaria
       return true;
-  }
+    }
 
+    // Per un item composto, ricorsivamente calcola le necessità per le sue dipendenze
+    for (int i = 0; i < list::size(item.dependencies); ++i)
+    {
+      std::string dependencyName = list::get(i, item.dependencies);
+      // Non c'è bisogno di una mappa temporanea per ogni dipendenza,
+      // basta passare la stessa 'requiredBasicItems' e far sommare la ricorsione.
+      if (!getRequiredBasicItems(indus, dependencyName, requiredBasicItems))
+      {
+        // Se una dipendenza non esiste o non può essere risolta, allora 'itemName' non può essere prodotto.
+        return false;
+      }
+    }
+    return true;
+  }
 
   // Funzione principale per howManyItem
   bool howManyItem(const Industry &indus, std::string name, unsigned int &res)
   {
-      // Non è necessaria una cache per howManyItemMemoizationCache qui
-      // perché il problema richiede una funzione howManyItem che calcola
-      // il massimo producibile date le quantità attuali, non memoizzando
-      // i risultati tra chiamate distinte se le quantità cambiano.
-      // La cache nel codice originale era probabilmente per calculateMaxProducible
-      // come una funzione ricorsiva interna, che è stata sostituita da getRequiredBasicItems.
-      // Pertanto, howManyItemMemoizationCache può essere rimossa del tutto.
+    // Non è necessaria una cache per howManyItemMemoizationCache qui
+    // perché il problema richiede una funzione howManyItem che calcola
+    // il massimo producibile date le quantità attuali, non memoizzando
+    // i risultati tra chiamate distinte se le quantità cambiano.
+    // La cache nel codice originale era probabilmente per calculateMaxProducible
+    // come una funzione ricorsiva interna, che è stata sostituita da getRequiredBasicItems.
+    // Pertanto, howManyItemMemoizationCache può essere rimossa del tutto.
 
+    int idx = findItemIndex(indus, name);
+    if (idx == -1)
+    {
+      res = 0;
+      return false; // Item non esistente
+    }
 
-      int idx = findItemIndex(indus, name);
-      if (idx == -1)
-      {
-          res = 0;
-          return false; // Item non esistente
-      }
+    const Item &item = indus->items[idx];
 
-      const Item &item = indus->items[idx];
-
-      // Se è un basic item, il risultato è la sua quantità disponibile
-      if (item.isBasic)
-      {
-          res = item.quantity;
-          return true;
-      }
-
-      // Per item composti:
-      // Calcola le quantità totali di ogni basic item necessarie per *una* unità di 'name'.
-      std::map<std::string, unsigned> requiredBasicItemsQuantities;
-      // Inizializza la mappa per assicurarsi che i valori siano 0 prima di sommare
-      // (std::map default-costruisce gli elementi a 0 per tipi numerici quando si usa [])
-
-      if (!getRequiredBasicItems(indus, name, requiredBasicItemsQuantities)) {
-          // Se non riusciamo a determinare i requisiti base (e.g., item non trovato nella catena di dipendenze),
-          // allora l'item non è producibile.
-          res = 0;
-          return false; // Indicare un fallimento nel trovare i requisiti base.
-      }
-
-      unsigned int minProducible = UINT_MAX;
-
-      if (requiredBasicItemsQuantities.empty()) {
-          // Un item composto che non richiede alcun basic item per essere prodotto.
-          // Questo implica che non ha dipendenze che si risolvono in basic items.
-          // Nella logica di produzione, questo significa che non può essere "costruito"
-          // da risorse iniziali, quindi la sua producibilità è 0.
-          res = 0;
-          return true; // L'item esiste, ma la sua producibilità è 0.
-      }
-
-      // Itera su tutti i basic items richiesti e calcola il limite di produzione
-      for (std::map<std::string, unsigned>::const_iterator it = requiredBasicItemsQuantities.begin(); it != requiredBasicItemsQuantities.end(); ++it)
-      {
-          std::string basicItemName = it->first;
-          unsigned int quantityNeededPerUnit = it->second;
-
-          // Questo caso non dovrebbe verificarsi se getRequiredBasicItems è implementato correttamente,
-          // dato che inserisce solo quantità positive.
-          if (quantityNeededPerUnit == 0) {
-              continue;
-          }
-
-          int basicItemIdx = findItemIndex(indus, basicItemName);
-          if (basicItemIdx == -1 || !indus->items[basicItemIdx].isBasic)
-          {
-              // Se un basic item richiesto non esiste o non è un basic item, allora la produzione è 0.
-              // Questo potrebbe indicare un'inconsistenza nella struttura dell'industria.
-              res = 0;
-              return true; // L'item esiste, ma non è producibile a causa di un componente mancante.
-          }
-
-          unsigned int availableQuantity = indus->items[basicItemIdx].quantity;
-
-          unsigned int currentProducible = availableQuantity / quantityNeededPerUnit;
-
-          if (currentProducible < minProducible)
-          {
-              minProducible = currentProducible;
-          }
-      }
-
-      res = minProducible;
+    // Se è un basic item, il risultato è la sua quantità disponibile
+    if (item.isBasic)
+    {
+      res = item.quantity;
       return true;
+    }
+
+    // Per item composti:
+    // Calcola le quantità totali di ogni basic item necessarie per *una* unità di 'name'.
+    std::map<std::string, unsigned> requiredBasicItemsQuantities;
+    // Inizializza la mappa per assicurarsi che i valori siano 0 prima di sommare
+    // (std::map default-costruisce gli elementi a 0 per tipi numerici quando si usa [])
+
+    if (!getRequiredBasicItems(indus, name, requiredBasicItemsQuantities))
+    {
+      // Se non riusciamo a determinare i requisiti base (e.g., item non trovato nella catena di dipendenze),
+      // allora l'item non è producibile.
+      res = 0;
+      return false; // Indicare un fallimento nel trovare i requisiti base.
+    }
+
+    unsigned int minProducible = UINT_MAX;
+
+    if (requiredBasicItemsQuantities.empty())
+    {
+      // Un item composto che non richiede alcun basic item per essere prodotto.
+      // Questo implica che non ha dipendenze che si risolvono in basic items.
+      // Nella logica di produzione, questo significa che non può essere "costruito"
+      // da risorse iniziali, quindi la sua producibilità è 0.
+      res = 0;
+      return true; // L'item esiste, ma la sua producibilità è 0.
+    }
+
+    // Itera su tutti i basic items richiesti e calcola il limite di produzione
+    for (std::map<std::string, unsigned>::const_iterator it = requiredBasicItemsQuantities.begin(); it != requiredBasicItemsQuantities.end(); ++it)
+    {
+      std::string basicItemName = it->first;
+      unsigned int quantityNeededPerUnit = it->second;
+
+      // Questo caso non dovrebbe verificarsi se getRequiredBasicItems è implementato correttamente,
+      // dato che inserisce solo quantità positive.
+      if (quantityNeededPerUnit == 0)
+      {
+        continue;
+      }
+
+      int basicItemIdx = findItemIndex(indus, basicItemName);
+      if (basicItemIdx == -1 || !indus->items[basicItemIdx].isBasic)
+      {
+        // Se un basic item richiesto non esiste o non è un basic item, allora la produzione è 0.
+        // Questo potrebbe indicare un'inconsistenza nella struttura dell'industria.
+        res = 0;
+        return true; // L'item esiste, ma non è producibile a causa di un componente mancante.
+      }
+
+      unsigned int availableQuantity = indus->items[basicItemIdx].quantity;
+
+      unsigned int currentProducible = availableQuantity / quantityNeededPerUnit;
+
+      if (currentProducible < minProducible)
+      {
+        minProducible = currentProducible;
+      }
+    }
+
+    res = minProducible;
+    return true;
   }
 
   // La funzione calculateMaxProducible e la howManyItemCache precedentemente definite sono state sostituite
@@ -557,4 +563,4 @@ namespace industry
   // Se la funzione calculateMaxProducible non è chiamata da nessun'altra parte, può essere rimossa.
   // Nel contesto di questa revisione, viene considerata rimossa/sostituita.
 
-} // namespace industry
+}
