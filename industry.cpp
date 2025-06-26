@@ -1,8 +1,7 @@
-// TO DO, vedi indicazioni in industry.h
 #include "industry.h"
-#include <map>       // Per std::map
-#include <set>       // Per std::set
-#include <climits>   // Per UINT_MAX
+#include <map>
+#include <set>
+#include <climits>
 
 namespace industry
 {
@@ -11,9 +10,9 @@ namespace industry
   {
     std::string name;
     bool isBasic;
-    unsigned quantity;       // Usato solo per basic items
-    list::List dependencies; // Items necessari per produrre questo item (A -> B, B è in dependencies di A)
-    list::List dependents;   // Items che richiedono questo item (B -> A, B è in dependents di A)
+    unsigned quantity;
+    list::List dependencies;
+    list::List dependents;
   };
 
   struct st_Industry
@@ -23,7 +22,8 @@ namespace industry
     int maxsize;
   };
 
-  // Funzione ausiliaria per trovare l'indice di un item
+  // Trova l'indice di un item nell'array dato il nome
+  // Restituisce -1 se l'item non viene trovato
   int findItemIndex(const Industry &indus, const std::string &name)
   {
     for (int i = 0; i < indus->size; ++i)
@@ -34,26 +34,50 @@ namespace industry
     return -1;
   }
 
-  // Funzione ausiliaria per ordinare una lista lessicograficamente
-  void sortListLexicographically(list::List &l)
+  int partition(list::List &l, int low, int high)
   {
-    int n = list::size(l);
-    for (int i = 0; i < n - 1; ++i)
+    std::string pivot = list::get(high, l);
+    int i = low - 1;
+
+    for (int j = low; j < high; j++)
     {
-      for (int j = i + 1; j < n; ++j)
+      if (list::get(j, l) < pivot)
       {
-        if (list::get(j, l) < list::get(i, l))
-        {
-          std::string tmp = list::get(i, l);
-          list::set(i, list::get(j, l), l);
-          list::set(j, tmp, l);
-        }
+        i++;
+        std::string temp = list::get(i, l);
+        list::set(i, list::get(j, l), l);
+        list::set(j, temp, l);
       }
+    }
+
+    std::string temp = list::get(i + 1, l);
+    list::set(i + 1, list::get(high, l), l);
+    list::set(high, temp, l);
+
+    return i + 1;
+  }
+  void quickSortRec(list::List &l, int low, int high)
+  {
+    if (low < high)
+    {
+      int pi = partition(l, low, high);
+      quickSortRec(l, low, pi - 1);
+      quickSortRec(l, pi + 1, high);
     }
   }
 
-  // Funzione ricorsiva per la rilevazione di cicli (DFS)
-  // Controlla se 'startNode' può raggiungere 'endNode' seguendo le dipendenze
+  // Funzione principale per ordinare lessicograficamente usando quicksort
+  void sortList(list::List &l)
+  {
+    int n = list::size(l);
+    if (n <= 1)
+      return; // Lista vuota o con un solo elemento già ordinata
+
+    quickSortRec(l, 0, n - 1);
+  }
+
+  // Verifica se esiste un percorso nel grafo delle dipendenze tra due nodi
+  // Utilizza DFS per rilevare potenziali cicli prima dell'inserimento
   bool hasPath(const Industry &indus, const std::string &startNode, const std::string &endNode, std::set<std::string> &visited)
   {
     if (startNode == endNode)
@@ -62,7 +86,7 @@ namespace industry
     }
     if (visited.count(startNode))
     {
-      return false; // Già visitato in questo percorso, nessun ciclo
+      return false; // Nodo già visitato in questo percorso
     }
 
     visited.insert(startNode);
@@ -70,10 +94,10 @@ namespace industry
     int idx = findItemIndex(indus, startNode);
     if (idx == -1)
     {
-      return false; // Nodo non trovato (dovrebbe già essere stato gestito dall'esterno)
+      return false;
     }
 
-    // Segui le dipendenze (componenti necessarie per produrre startNode)
+    // Esplora ricorsivamente tutte le dipendenze del nodo corrente
     list::List dependencies = indus->items[idx].dependencies;
     for (int i = 0; i < list::size(dependencies); ++i)
     {
@@ -86,7 +110,8 @@ namespace industry
     return false;
   }
 
-  // Funzione ricorsiva per raccogliere i "neededBy" (diretti o indiretti)
+  // Raccoglie ricorsivamente tutti gli item che dipendono (direttamente o indirettamente) da un dato item
+  // Implementa una visita in profondità per costruire la catena completa delle dipendenze
   void collectNeededByChainRec(const Industry &indus, const std::string &name, std::set<std::string> &resultSet, std::set<std::string> &visited)
   {
     if (visited.count(name))
@@ -101,25 +126,23 @@ namespace industry
       return;
     }
 
-    list::List dependents = indus->items[idx].dependents; // Questi sono gli item che dipendono da 'name'
+    list::List dependents = indus->items[idx].dependents;
     for (int i = 0; i < list::size(dependents); ++i)
     {
       std::string dependentName = list::get(i, dependents);
       if (resultSet.find(dependentName) == resultSet.end())
-      { // Evita di aggiungere duplicati
+      {
         resultSet.insert(dependentName);
       }
       collectNeededByChainRec(indus, dependentName, resultSet, visited);
     }
   }
 
-  // Implementazione delle funzioni richieste
-
   Industry createEmptyIndustry()
   {
     Industry ind = new st_Industry;
     ind->size = 0;
-    ind->maxsize = 100; // Dimensione iniziale, può essere riallocato se necessario
+    ind->maxsize = 100; // Dimensione iniziale ragionevole
     ind->items = new Item[ind->maxsize];
     return ind;
   }
@@ -128,6 +151,8 @@ namespace industry
   {
     if (indus == nullptr)
       return;
+
+    // Libera la memoria delle liste di ogni item
     for (int i = 0; i < indus->size; ++i)
     {
       list::clear(indus->items[i].dependencies);
@@ -145,9 +170,9 @@ namespace industry
       return false; // Item già esistente
     }
 
+    // Gestione del ridimensionamento dinamico dell'array
     if (indus->size == indus->maxsize)
     {
-      // Riallocazione se la dimensione massima è stata raggiunta
       int newMaxsize = indus->maxsize * 2;
       Item *newItems = new Item[newMaxsize];
       for (int i = 0; i < indus->size; ++i)
@@ -178,33 +203,32 @@ namespace industry
     }
     if (s == 0 || components == nullptr)
     {
-      return false; // Un item composto deve avere almeno una componente
+      return false; // Un item composto deve avere componenti
     }
 
-    // 1. Verifica che tutte le componenti esistano e che non siano vuote
+    // Verifica l'esistenza di tutte le componenti
     for (size_t i = 0; i < s; ++i)
     {
       if (findItemIndex(indus, components[i]) == -1)
       {
-        return false; // Componente non esistente
-      }
-    }
-
-    // 2. Verifica la formazione di cicli
-    // Un ciclo si formerebbe se il nuovo item (o un item da cui dipende)
-    // dipendesse a sua volta da 'name'
-    for (size_t i = 0; i < s; ++i)
-    {
-      std::set<std::string> visited;
-      if (hasPath(indus, components[i], name, visited))
-      { // Se una componente può raggiungere il nuovo item, c'è un ciclo
         return false;
       }
     }
 
+    // Controllo per prevenire la formazione di cicli nel grafo delle dipendenze
+    // Se una componente può raggiungere il nuovo item, si creerebbe un ciclo
+    for (size_t i = 0; i < s; ++i)
+    {
+      std::set<std::string> visited;
+      if (hasPath(indus, components[i], name, visited))
+      {
+        return false;
+      }
+    }
+
+    // Ridimensionamento se necessario
     if (indus->size == indus->maxsize)
     {
-      // Riallocazione
       int newMaxsize = indus->maxsize * 2;
       Item *newItems = new Item[newMaxsize];
       for (int i = 0; i < indus->size; ++i)
@@ -216,14 +240,15 @@ namespace industry
       indus->maxsize = newMaxsize;
     }
 
-    // 3. Inserimento dell'item e aggiornamento delle dipendenze
+    // Creazione e inserimento del nuovo item
     Item newItem;
     newItem.name = name;
     newItem.isBasic = false;
-    newItem.quantity = 0; // Non applicabile per item composti
+    newItem.quantity = 0;
     newItem.dependencies = list::createEmpty();
     newItem.dependents = list::createEmpty();
 
+    // Aggiornamento delle relazioni di dipendenza bidirezionali
     for (size_t i = 0; i < s; ++i)
     {
       list::addBack(components[i], newItem.dependencies);
@@ -243,8 +268,8 @@ namespace industry
     return findItemIndex(indus, name) != -1;
   }
 
-  // Funzione ausiliaria per la rimozione ricorsiva
-  // Raccoglie tutti gli item che devono essere rimossi a partire da 'nameToRemove'
+  // Raccoglie ricorsivamente tutti gli item che devono essere rimossi
+  // quando si rimuove un item (inclusi tutti i dipendenti)
   void collectItemsToRemove(const Industry &indus, const std::string &nameToRemove, std::set<std::string> &itemsToRemoveSet)
   {
     if (itemsToRemoveSet.count(nameToRemove))
@@ -256,9 +281,10 @@ namespace industry
     int idx = findItemIndex(indus, nameToRemove);
     if (idx == -1)
     {
-      return; // Item non trovato (dovrebbe essere sempre presente se chiamato ricorsivamente)
+      return;
     }
 
+    // Rimozione ricorsiva di tutti gli item dipendenti
     list::List dependents = indus->items[idx].dependents;
     for (int i = 0; i < list::size(dependents); ++i)
     {
@@ -272,13 +298,13 @@ namespace industry
     int idx = findItemIndex(indus, name);
     if (idx == -1)
     {
-      return false; // Item non esistente
+      return false;
     }
 
     std::set<std::string> itemsToRemoveSet;
     collectItemsToRemove(indus, name, itemsToRemoveSet);
 
-    // Crea un nuovo array di items escludendo quelli da rimuovere
+    // Creazione di un nuovo array senza gli item da rimuovere
     Item *newItems = new Item[indus->maxsize];
     int newSize = 0;
 
@@ -286,18 +312,18 @@ namespace industry
     {
       if (itemsToRemoveSet.find(indus->items[i].name) == itemsToRemoveSet.end())
       {
-        // Copia solo gli item che non devono essere rimossi
         newItems[newSize++] = indus->items[i];
       }
       else
       {
-        // Pulisci le liste di dipendenza dell'item rimosso prima di "eliminarlo logicamente"
+        // Pulizia della memoria delle liste prima della rimozione
         list::clear(indus->items[i].dependencies);
         list::clear(indus->items[i].dependents);
       }
     }
 
-    // Aggiorna le dipendenze degli item rimasti, rimuovendo riferimenti a item eliminati
+    // Aggiornamento delle dipendenze negli item rimanenti
+    // Rimozione dei riferimenti agli item eliminati
     for (int i = 0; i < newSize; ++i)
     {
       list::List currentDependencies = newItems[i].dependencies;
@@ -339,19 +365,20 @@ namespace industry
     int idx = findItemIndex(indus, name);
     if (idx == -1 || !indus->items[idx].isBasic)
     {
-      return false; // Item non esistente o non è un basic item
+      return false;
     }
 
+    // Gestione di quantità negative assicurando che non si vada sotto zero
     if (quantity < 0)
     {
       unsigned int abs_quantity = (unsigned int)(-quantity);
       if (indus->items[idx].quantity < abs_quantity)
       {
-        indus->items[idx].quantity = 0; // Non può andare sotto zero
+        indus->items[idx].quantity = 0;
       }
       else
       {
-        indus->items[idx].quantity -= abs_quantity; // quantity è negativo, quindi sottrae
+        indus->items[idx].quantity -= abs_quantity;
       }
     }
     else
@@ -366,17 +393,17 @@ namespace industry
     int idx = findItemIndex(indus, name);
     if (idx == -1)
     {
-      lres = list::createEmpty(); // Assicurati che lres sia vuota in caso di fallimento
+      lres = list::createEmpty();
       return false;
     }
 
     lres = list::createEmpty();
-    list::List dependencies = indus->items[idx].dependencies; // Dipendenze dirette
+    list::List dependencies = indus->items[idx].dependencies;
     for (int i = 0; i < list::size(dependencies); ++i)
     {
       list::addBack(list::get(i, dependencies), lres);
     }
-    sortListLexicographically(lres);
+    sortList(lres);
     return true;
   }
 
@@ -385,17 +412,17 @@ namespace industry
     int idx = findItemIndex(indus, name);
     if (idx == -1)
     {
-      lres = list::createEmpty(); // Assicurati che lres sia vuota in caso di fallimento
+      lres = list::createEmpty();
       return false;
     }
 
     lres = list::createEmpty();
-    list::List dependents = indus->items[idx].dependents; // Dipendenti diretti
+    list::List dependents = indus->items[idx].dependents;
     for (int i = 0; i < list::size(dependents); ++i)
     {
       list::addBack(list::get(i, dependents), lres);
     }
-    sortListLexicographically(lres);
+    sortList(lres);
     return true;
   }
 
@@ -409,127 +436,103 @@ namespace industry
     }
 
     std::set<std::string> resultSet;
-    std::set<std::string> visited; // Per tracciare i nodi visitati nella DFS
+    std::set<std::string> visited;
 
-    // Inizia la ricorsione dai diretti dipendenti
+    // Avvio della ricerca ricorsiva partendo dai dipendenti diretti
     list::List initialDependents = indus->items[idx].dependents;
     for (int i = 0; i < list::size(initialDependents); ++i)
     {
       std::string dependentName = list::get(i, initialDependents);
       if (resultSet.find(dependentName) == resultSet.end())
-      { // Evita di aggiungere duplicati all'inizio
+      {
         resultSet.insert(dependentName);
       }
       collectNeededByChainRec(indus, dependentName, resultSet, visited);
     }
 
     lres = list::createEmpty();
-    // Correzione del warning C++11: usare un iteratore tradizionale
+    // Conversione del set in lista ordinata
     for (std::set<std::string>::const_iterator it = resultSet.begin(); it != resultSet.end(); ++it)
     {
       list::addBack(*it, lres);
     }
-    sortListLexicographically(lres);
+    sortList(lres);
     return true;
   }
 
-  // Funzione ausiliaria ricorsiva per calcolare le quantità totali di basic items
-  // necessarie per produrre *una singola unità* di 'itemName'.
-  // Popola 'requiredBasicItems' con coppie (nome_basic_item, quantità_necessaria_per_unità_di_itemName).
-  // Restituisce true se 'itemName' esiste e la raccolta ha successo, false altrimenti.
-  // Questa funzione è marcata come static per essere visibile solo all'interno di questo file.
+  // Calcola ricorsivamente le quantità di basic items necessarie per produrre un'unità dell'item specificato
+  // Accumula i risultati nella mappa passata per riferimento
   static bool getRequiredBasicItems(const Industry &indus, const std::string &itemName, std::map<std::string, unsigned> &requiredBasicItems)
   {
     int idx = findItemIndex(indus, itemName);
     if (idx == -1)
     {
-      return false; // Item non trovato
+      return false;
     }
 
     const Item &item = indus->items[idx];
 
     if (item.isBasic)
     {
-      requiredBasicItems[item.name] += 1; // 1 unità del basic item 'item.name' è necessaria
+      requiredBasicItems[item.name] += 1; // Un'unità del basic item
       return true;
     }
 
-    // Per un item composto, ricorsivamente calcola le necessità per le sue dipendenze
+    // Per item composti, accumula ricorsivamente i requisiti di tutte le dipendenze
     for (int i = 0; i < list::size(item.dependencies); ++i)
     {
       std::string dependencyName = list::get(i, item.dependencies);
-      // Non c'è bisogno di una mappa temporanea per ogni dipendenza,
-      // basta passare la stessa 'requiredBasicItems' e far sommare la ricorsione.
       if (!getRequiredBasicItems(indus, dependencyName, requiredBasicItems))
       {
-        // Se una dipendenza non esiste o non può essere risolta, allora 'itemName' non può essere prodotto.
         return false;
       }
     }
     return true;
   }
 
-  // Funzione principale per howManyItem
   bool howManyItem(const Industry &indus, std::string name, unsigned int &res)
   {
-    // Non è necessaria una cache per howManyItemMemoizationCache qui
-    // perché il problema richiede una funzione howManyItem che calcola
-    // il massimo producibile date le quantità attuali, non memoizzando
-    // i risultati tra chiamate distinte se le quantità cambiano.
-    // La cache nel codice originale era probabilmente per calculateMaxProducible
-    // come una funzione ricorsiva interna, che è stata sostituita da getRequiredBasicItems.
-    // Pertanto, howManyItemMemoizationCache può essere rimossa del tutto.
-
     int idx = findItemIndex(indus, name);
     if (idx == -1)
     {
       res = 0;
-      return false; // Item non esistente
+      return false;
     }
 
     const Item &item = indus->items[idx];
 
-    // Se è un basic item, il risultato è la sua quantità disponibile
+    // Per basic items, la quantità producibile è quella disponibile
     if (item.isBasic)
     {
       res = item.quantity;
       return true;
     }
 
-    // Per item composti:
-    // Calcola le quantità totali di ogni basic item necessarie per *una* unità di 'name'.
+    // Per item composti, calcola i requisiti totali di basic items
     std::map<std::string, unsigned> requiredBasicItemsQuantities;
-    // Inizializza la mappa per assicurarsi che i valori siano 0 prima di sommare
-    // (std::map default-costruisce gli elementi a 0 per tipi numerici quando si usa [])
 
     if (!getRequiredBasicItems(indus, name, requiredBasicItemsQuantities))
     {
-      // Se non riusciamo a determinare i requisiti base (e.g., item non trovato nella catena di dipendenze),
-      // allora l'item non è producibile.
       res = 0;
-      return false; // Indicare un fallimento nel trovare i requisiti base.
+      return false;
     }
 
+    // Il numero massimo producibile è limitato dal basic item più scarso
     unsigned int minProducible = UINT_MAX;
 
     if (requiredBasicItemsQuantities.empty())
     {
-      // Un item composto che non richiede alcun basic item per essere prodotto.
-      // Questo implica che non ha dipendenze che si risolvono in basic items.
-      // Nella logica di produzione, questo significa che non può essere "costruito"
-      // da risorse iniziali, quindi la sua producibilità è 0.
+      // Item composto senza dipendenze da basic items (caso teorico)
       res = 0;
-      return true; // L'item esiste, ma la sua producibilità è 0.
+      return true;
     }
 
-    // Itera su tutti i basic items richiesti e calcola il limite di produzione
+    // Trova il collo di bottiglia tra tutti i basic items richiesti
     for (std::map<std::string, unsigned>::const_iterator it = requiredBasicItemsQuantities.begin(); it != requiredBasicItemsQuantities.end(); ++it)
     {
       std::string basicItemName = it->first;
       unsigned int quantityNeededPerUnit = it->second;
 
-      // Questo caso non dovrebbe verificarsi se getRequiredBasicItems è implementato correttamente,
-      // dato che inserisce solo quantità positive.
       if (quantityNeededPerUnit == 0)
       {
         continue;
@@ -538,14 +541,11 @@ namespace industry
       int basicItemIdx = findItemIndex(indus, basicItemName);
       if (basicItemIdx == -1 || !indus->items[basicItemIdx].isBasic)
       {
-        // Se un basic item richiesto non esiste o non è un basic item, allora la produzione è 0.
-        // Questo potrebbe indicare un'inconsistenza nella struttura dell'industria.
         res = 0;
-        return true; // L'item esiste, ma non è producibile a causa di un componente mancante.
+        return true;
       }
 
       unsigned int availableQuantity = indus->items[basicItemIdx].quantity;
-
       unsigned int currentProducible = availableQuantity / quantityNeededPerUnit;
 
       if (currentProducible < minProducible)
@@ -557,10 +557,5 @@ namespace industry
     res = minProducible;
     return true;
   }
-
-  // La funzione calculateMaxProducible e la howManyItemCache precedentemente definite sono state sostituite
-  // e la loro logica integrata direttamente in howManyItem e nella nuova funzione getRequiredBasicItems.
-  // Se la funzione calculateMaxProducible non è chiamata da nessun'altra parte, può essere rimossa.
-  // Nel contesto di questa revisione, viene considerata rimossa/sostituita.
 
 }
