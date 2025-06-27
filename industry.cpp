@@ -23,8 +23,8 @@ namespace industry
     int size;
     int maxsize;
   };
-
-  int findItemIndex(const Industry &indus, const string &name) // Funzione utile a trovare l'indice di un item nell'array dato il nome
+  // Funzione utile a trovare l'indice di un item nell'array dato il nome
+  int findItemIndex(const Industry &indus, const string &name)
   {
     for (int i = 0; i < indus->size; ++i)
     {
@@ -34,7 +34,8 @@ namespace industry
     return -1;
   }
 
-  int partition(list::List &l, int low, int high) // Partizione per il quicksort
+  // Partizione per il quicksort
+  int partition(list::List &l, int low, int high)
   {
     string pivot = list::get(high, l);
     int i = low - 1;
@@ -66,7 +67,8 @@ namespace industry
     }
   }
 
-  void sortList(list::List &l) // Funzione per ordinare con quicksort
+  // Funzione per ordinare con quicksort
+  void sortList(list::List &l)
   {
     int n = list::size(l);
     if (n <= 1)
@@ -75,8 +77,8 @@ namespace industry
     quickSortRec(l, 0, n - 1);
   }
 
- 
-  bool hasPath(const Industry &indus, const string &startNode, const string &endNode, set<string> &visited) // // Verifica se esiste un percorso nel grafo delle dipendenze tra due nodi tramite DFS per evitare cicli
+  // Verifica se esiste un percorso nel grafo delle dipendenze tra due nodi tramite DFS per evitare cicli
+  bool hasPath(const Industry &indus, const string &startNode, const string &endNode, set<string> &visited)
   {
     if (startNode == endNode)
     {
@@ -107,18 +109,19 @@ namespace industry
     return false;
   }
 
-  void collectNeededByChainRec(const Industry &indus, const string &name, set<string> &resultSet, set<string> &visited) // Funzione ricorsiva per raccogliere tutti gli item che dipendono da un dato item
+  // Funzione ricorsiva per raccogliere tutti gli item che dipendono da un dato item
+  void getDeps(const Industry &indus, const string &name, set<string> &resultSet, set<string> &visited)
   {
     if (visited.count(name))
     {
-      return; 
+      return;
     }
     visited.insert(name);
 
     int idx = findItemIndex(indus, name);
     if (idx == -1)
     {
-      return; 
+      return;
     }
 
     list::List dependents = indus->items[idx].dependents;
@@ -129,7 +132,7 @@ namespace industry
       {
         resultSet.insert(dependentName);
       }
-      collectNeededByChainRec(indus, dependentName, resultSet, visited);
+      getDeps(indus, dependentName, resultSet, visited);
     }
   }
 
@@ -141,7 +144,6 @@ namespace industry
     ind->items = new Item[ind->maxsize];
     return ind;
   }
-
 
   bool insertBasicItem(Industry &indus, string name) //
   {
@@ -248,16 +250,15 @@ namespace industry
     return findItemIndex(indus, name) != -1;
   }
 
-  // Raccoglie ricorsivamente tutti gli item che devono essere rimossi
-  // quando si rimuove un item (inclusi tutti i dipendenti)
-  void collectItemsToRemove(const Industry &indus, const string &nameToRemove, set<string> &itemsToRemoveSet)
+  // funzione che raccoglie ricorsivamente tutti gli item che devono essere rimossi quando si rimuove un item
+  void findToDelete(const Industry &indus, const string &nameToRemove, set<string> &toRemove)
   {
-    if (itemsToRemoveSet.count(nameToRemove))
+    if (toRemove.count(nameToRemove))
     {
-      return; // Già marcato per la rimozione
+      return;
     }
 
-    itemsToRemoveSet.insert(nameToRemove);
+    toRemove.insert(nameToRemove);
     int idx = findItemIndex(indus, nameToRemove);
     if (idx == -1)
     {
@@ -265,11 +266,12 @@ namespace industry
     }
 
     // Rimozione ricorsiva di tutti gli item dipendenti
+
     list::List dependents = indus->items[idx].dependents;
     for (int i = 0; i < list::size(dependents); ++i)
     {
       string dependentName = list::get(i, dependents);
-      collectItemsToRemove(indus, dependentName, itemsToRemoveSet);
+      findToDelete(indus, dependentName, toRemove);
     }
   }
 
@@ -281,16 +283,16 @@ namespace industry
       return false;
     }
 
-    set<string> itemsToRemoveSet;
-    collectItemsToRemove(indus, name, itemsToRemoveSet);
+    set<string> toRemove;
+    findToDelete(indus, name, toRemove);
 
-    // Creazione di un nuovo array senza gli item da rimuovere
+    // Creazione di un nuovo array senza item da rimuovere
     Item *newItems = new Item[indus->maxsize];
     int newSize = 0;
 
     for (int i = 0; i < indus->size; ++i)
     {
-      if (itemsToRemoveSet.find(indus->items[i].name) == itemsToRemoveSet.end())
+      if (toRemove.find(indus->items[i].name) == toRemove.end())
       {
         newItems[newSize++] = indus->items[i];
       }
@@ -308,7 +310,7 @@ namespace industry
       for (int j = 0; j < list::size(currentDependencies); ++j)
       {
         string depName = list::get(j, currentDependencies);
-        if (itemsToRemoveSet.find(depName) == itemsToRemoveSet.end())
+        if (toRemove.find(depName) == toRemove.end())
         {
           list::addBack(depName, newDependencies);
         }
@@ -316,12 +318,12 @@ namespace industry
       list::clear(newItems[i].dependencies);
       newItems[i].dependencies = newDependencies;
 
-      list::List currentDependents = newItems[i].dependents;
+      list::List currDependents = newItems[i].dependents;
       list::List newDependents = list::createEmpty();
-      for (int j = 0; j < list::size(currentDependents); ++j)
+      for (int j = 0; j < list::size(currDependents); ++j)
       {
-        string depName = list::get(j, currentDependents);
-        if (itemsToRemoveSet.find(depName) == itemsToRemoveSet.end())
+        string depName = list::get(j, currDependents);
+        if (toRemove.find(depName) == toRemove.end())
         {
           list::addBack(depName, newDependents);
         }
@@ -347,19 +349,19 @@ namespace industry
 
     if (quantity < 0)
     {
-      unsigned int abs_quantity = (unsigned int)(-quantity);
-      if (indus->items[idx].quantity < abs_quantity)
+      unsigned int abs_quantity = (unsigned int)(-quantity); // tolgo il - perchè unsigned non può contenere valori negativi
+      if (indus->items[idx].quantity < abs_quantity)         // controllo che non vada in negativo
       {
-        indus->items[idx].quantity = 0;
+        indus->items[idx].quantity = 0; // se la quantità è insufficiente, imposto a 0
       }
       else
       {
-        indus->items[idx].quantity -= abs_quantity;
+        indus->items[idx].quantity -= abs_quantity; // se la quantità è sufficiente, sottraggo
       }
     }
     else
     {
-      indus->items[idx].quantity += quantity;
+      indus->items[idx].quantity += quantity; // aggiungo la quantità
     }
     return true;
   }
@@ -377,7 +379,7 @@ namespace industry
     list::List dependencies = indus->items[idx].dependencies;
     for (int i = 0; i < list::size(dependencies); ++i)
     {
-      list::addBack(list::get(i, dependencies), lres);
+      list::addBack(list::get(i, dependencies), lres); // Aggiungo le dipendenze alla lista
     }
     sortList(lres);
     return true;
@@ -414,7 +416,7 @@ namespace industry
     set<string> resultSet;
     set<string> visited;
 
-    list::List initialDependents = indus->items[idx].dependents; 
+    list::List initialDependents = indus->items[idx].dependents;
     for (int i = 0; i < list::size(initialDependents); ++i)
     {
       string dependentName = list::get(i, initialDependents);
@@ -422,11 +424,10 @@ namespace industry
       {
         resultSet.insert(dependentName);
       }
-      collectNeededByChainRec(indus, dependentName, resultSet, visited);
+      getDeps(indus, dependentName, resultSet, visited);
     }
 
     lres = list::createEmpty();
-    // Conversione del set in lista ordinata
     for (set<string>::const_iterator it = resultSet.begin(); it != resultSet.end(); ++it)
     {
       list::addBack(*it, lres);
@@ -435,7 +436,8 @@ namespace industry
     return true;
   }
 
-  static bool getRequiredBasicItems(const Industry &indus, const string &itemName, map<string, unsigned> &requiredBasicItems)// Funzione ricorsiva per ottenere i basic items richiesti da un item
+  // Funzione ricorsiva per ottenere i basic items richiesti da un item
+  static bool getBasicItem(const Industry &indus, const string &itemName, map<string, unsigned> &requiredBasicItems)
   {
     int idx = findItemIndex(indus, itemName);
     if (idx == -1)
@@ -447,15 +449,14 @@ namespace industry
 
     if (item.isBasic)
     {
-      requiredBasicItems[item.name] += 1; 
+      requiredBasicItems[item.name] += 1;
       return true;
     }
 
-    // Per item composti, accumula ricorsivamente i requisiti di tutte le dipendenze
     for (int i = 0; i < list::size(item.dependencies); ++i)
     {
       string dependencyName = list::get(i, item.dependencies);
-      if (!getRequiredBasicItems(indus, dependencyName, requiredBasicItems))
+      if (!getBasicItem(indus, dependencyName, requiredBasicItems))
       {
         return false;
       }
@@ -474,31 +475,28 @@ namespace industry
 
     const Item &item = indus->items[idx];
 
-    // Per basic items, la quantità producibile è quella disponibile
     if (item.isBasic)
     {
       res = item.quantity;
       return true;
     }
 
-    // Per item composti, calcola i requisiti totali di basic items
-    map<string, unsigned> requiredBasicItemsQuantities;
+    map<string, unsigned> Map;
 
-    if (!getRequiredBasicItems(indus, name, requiredBasicItemsQuantities)) 
+    if (!getBasicItem(indus, name, Map))
     {
       res = 0;
       return false;
     }
-    unsigned int minProd = UINT_MAX; 
+    unsigned int minProd = UINT_MAX;
 
-    if (requiredBasicItemsQuantities.empty())
+    if (Map.empty())
     {
       res = 0;
       return true; // Non ci sono basic items richiesti
     }
 
-    // Itera su tutti i basic items richiesti e calcola la quantità massima producibile
-    for (map<string, unsigned>::const_iterator it = requiredBasicItemsQuantities.begin(); it != requiredBasicItemsQuantities.end(); ++it)
+    for (map<string, unsigned>::const_iterator it = Map.begin(); it != Map.end(); ++it)
     {
       string basicItemName = it->first;
       unsigned int quantityNeededPerUnit = it->second;
