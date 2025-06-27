@@ -489,7 +489,7 @@ namespace industry
       res = 0;
       return false;
     }
-    unsigned int minProducible = UINT_MAX; 
+    unsigned int minProd = UINT_MAX; 
 
     if (requiredBasicItemsQuantities.empty())
     {
@@ -516,15 +516,15 @@ namespace industry
       }
 
       unsigned int availableQuantity = indus->items[basicItemIdx].quantity;
-      unsigned int currentProducible = availableQuantity / quantityNeededPerUnit;
+      unsigned int currentProd = availableQuantity / quantityNeededPerUnit;
 
-      if (currentProducible < minProducible)
+      if (currentProd < minProd)
       {
-        minProducible = currentProducible;
+        minProd = currentProd;
       }
     }
 
-    res = minProducible;
+    res = minProd;
     return true;
   }
 
